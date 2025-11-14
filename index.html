@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#DC143C">
+    <title>Baseball Pitching Counter</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚾</text></svg>">
+    <link rel="manifest" href="manifest.json" onerror="this.remove()">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="apple-touch-icon" href="icon-192.png" onerror="this.remove()">
+    
+    <!-- Firebase SDKs (only loads if not file:// protocol) -->
+    <script>
+        if (window.location.protocol !== 'file:') {
+            // Load Firebase App first
+            const script1 = document.createElement('script');
+            script1.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
+            
+            script1.onload = () => {
+                // Once Firebase App is loaded, load Firestore
+                const script2 = document.createElement('script');
+                script2.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
+                
+                script2.onload = () => {
+                    // Once both are loaded, load the config
+                    const configScript = document.createElement('script');
+                    configScript.src = 'firebase-config.js';
+                    document.head.appendChild(configScript);
+                };
+                document.head.appendChild(script2);
+            };
+            document.head.appendChild(script1);
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div id="syncStatus" class="sync-status-top-right"></div>
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="flex: 1;">
+                    <h1>⚾ Baseball Pitching Counter</h1>
+                    <div id="gameNameDisplay" class="game-name-header"></div>
+                    <p class="subtitle" id="subtitleText">Track opponent player pitches during the game</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tab-navigation" style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="playersTabBtn" class="btn btn-primary tab-btn active">Players</button>
+            <button id="statsTabBtn" class="btn btn-secondary tab-btn">Stats</button>
+            <button id="practiceTabBtn" class="btn btn-secondary tab-btn">Practice</button>
+        </div>
+
+        <!-- Players Tab -->
+        <div id="playersTab" class="tab-content">
+            <div class="add-player-section">
+                <h2>Add Player</h2>
+                <div class="input-group">
+                    <input type="number" id="playerNumberInput" placeholder="Enter player number" min="1" max="99">
+                    <button id="addPlayerBtn" class="btn btn-primary">Add</button>
+                </div>
+            </div>
+
+            <div class="players-list" id="playersList">
+                <!-- Player cards will be dynamically added here -->
+            </div>
+
+            <div class="empty-state" id="emptyState">
+                <p>👤 No players added yet.</p>
+                <p>Add a player number above to start tracking!</p>
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div id="statsTab" class="tab-content" style="display: none;">
+            <div class="stats-container" id="statsContainer">
+                <!-- Stats will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Practice Tab -->
+        <div id="practiceTab" class="tab-content" style="display: none;">
+            <div class="practice-container" style="background: var(--card-bg); border-radius: 16px; padding: 20px; box-shadow: var(--shadow);">
+                <h2 style="font-size: 20px; margin-bottom: 16px; color: var(--text-primary);">Practice Pitch Tracking</h2>
+                <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                    <div class="pitchers-box-diagram" id="pitchersBoxDiagram" style="position: relative; width: 300px; height: 400px; border: 3px solid #000; background: #fff; cursor: crosshair;">
+                        <!-- Pitcher's box/strike zone will be rendered here -->
+                    </div>
+                </div>
+                <div style="text-align: center;">
+                    <button id="clearPracticeBtn" class="btn btn-secondary" style="margin-top: 10px;">Clear Practice Pitches</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pitch Confirmation Message -->
+    <div id="pitchConfirmation" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--success-color); color: white; padding: 20px 40px; border-radius: 12px; font-size: 24px; font-weight: 600; z-index: 10000; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.3s ease-in-out;">
+        Pitch Recorded
+    </div>
+
+    <!-- Pitch Tracking Modal -->
+    <div class="modal" id="pitchModal">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <h2 id="modalTitle">Record Pitch</h2>
+            <div class="modal-body">
+                <div class="player-name-modal" id="modalPlayerNumber"></div>
+                
+                <div class="pitch-controls">
+                    <div class="pitch-type-section">
+                        <h3>Pitch Type</h3>
+                        <div class="pitch-types-grid">
+                            <button class="pitch-type-btn" data-type="fastball">⚡ Fastball</button>
+                            <button class="pitch-type-btn" data-type="curveball">🌀 Curveball</button>
+                            <button class="pitch-type-btn" data-type="slider">➡️ Slider</button>
+                            <button class="pitch-type-btn" data-type="changeup">🐢 Changeup</button>
+                            <button class="pitch-type-btn" data-type="cutter">✂️ Cutter</button>
+                            <button class="pitch-type-btn" data-type="splitter">✋ Splitter</button>
+                        </div>
+                    </div>
+
+                    <div class="swing-section">
+                        <h3>Swing Decision</h3>
+                        <div class="swing-buttons">
+                            <button class="swing-btn swing-yes" data-swing="yes">✅ Swung</button>
+                            <button class="swing-btn swing-no" data-swing="no">❌ Didn't Swing</button>
+                        </div>
+                    </div>
+
+                    <div class="result-section" id="resultSection" style="display: none;">
+                        <h3>Result</h3>
+                        <div class="result-buttons">
+                            <button class="result-btn result-hit" data-result="hit">🎯 Hit</button>
+                            <button class="result-btn result-miss" data-result="miss">❌ Miss</button>
+                        </div>
+                    </div>
+
+                    <div class="hit-details-section" id="hitDetailsSection" style="display: none;">
+                        <div class="hit-placement-section" style="margin-bottom: 20px;">
+                            <h3>Hit Placement</h3>
+                            <div class="baseball-field-diagram" id="baseballFieldDiagram">
+                                <!-- Baseball field background (proper diamond shape) -->
+                                <svg viewBox="0 0 300 300" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;">
+                                    <!-- Outfield grass (arc shape) -->
+                                    <path d="M 150 280 Q 150 50, 150 20 Q 50 20, 20 80 Q 20 150, 80 200 Q 150 250, 220 200 Q 280 150, 280 80 Q 280 20, 150 20 Q 150 50, 150 280 Z" fill="#90EE90" opacity="0.4"/>
+                                    
+                                    <!-- Infield dirt (diamond shape) -->
+                                    <path d="M 150 280 L 240 150 L 150 20 L 60 150 Z" fill="#D2B48C" opacity="0.6"/>
+                                    
+                                    <!-- Base paths (lines connecting bases) -->
+                                    <line x1="150" y1="280" x2="240" y2="150" stroke="#8B4513" stroke-width="3" opacity="0.7"/>
+                                    <line x1="150" y1="280" x2="60" y2="150" stroke="#8B4513" stroke-width="3" opacity="0.7"/>
+                                    <line x1="240" y1="150" x2="150" y2="20" stroke="#8B4513" stroke-width="3" opacity="0.7"/>
+                                    <line x1="60" y1="150" x2="150" y2="20" stroke="#8B4513" stroke-width="3" opacity="0.7"/>
+                                    
+                                    <!-- Pitcher's mound (circle in center) -->
+                                    <circle cx="150" cy="150" r="8" fill="#8B4513" opacity="0.8"/>
+                                    <circle cx="150" cy="150" r="6" fill="#D2B48C" opacity="0.9"/>
+                                    
+                                    <!-- First Base (right side) -->
+                                    <rect x="235" y="145" width="12" height="12" fill="white" stroke="#333" stroke-width="2" rx="2"/>
+                                    
+                                    <!-- Second Base (top) -->
+                                    <rect x="144" y="14" width="12" height="12" fill="white" stroke="#333" stroke-width="2" rx="2" transform="rotate(45 150 20)"/>
+                                    
+                                    <!-- Third Base (left side) -->
+                                    <rect x="53" y="145" width="12" height="12" fill="white" stroke="#333" stroke-width="2" rx="2"/>
+                                    
+                                    <!-- Home plate (bottom center - pentagon shape) -->
+                                    <path d="M 150 280 L 145 275 L 140 275 L 140 285 L 160 285 L 160 275 L 155 275 Z" fill="white" stroke="#333" stroke-width="2"/>
+                                </svg>
+                                
+                                <!-- Player Positions (positioned accurately on the field) -->
+                                
+                                <!-- Pitcher (center of diamond) -->
+                                <div class="field-position" data-position="P" style="position: absolute; top: 48%; left: 48%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Pitcher">P</div>
+                                
+                                <!-- Catcher (behind home plate, bottom) -->
+                                <div class="field-position" data-position="C" style="position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Catcher">C</div>
+                                
+                                <!-- First Base (right side of diamond) -->
+                                <div class="field-position" data-position="1B" style="position: absolute; top: 48%; right: 18%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="First Base">1B</div>
+                                
+                                <!-- Second Base (top of diamond) -->
+                                <div class="field-position" data-position="2B" style="position: absolute; top: 11%; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Second Base">2B</div>
+                                
+                                <!-- Third Base (left side of diamond) -->
+                                <div class="field-position" data-position="3B" style="position: absolute; top: 48%; left: 18%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Third Base">3B</div>
+                                
+                                <!-- Shortstop (between 2B and 3B, slightly left of center) -->
+                                <div class="field-position" data-position="SS" style="position: absolute; top: 25%; left: 32%; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Shortstop">SS</div>
+                                
+                                <!-- Left Field (deep left, in outfield) -->
+                                <div class="field-position" data-position="LF" style="position: absolute; top: 14%; left: 8%; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Left Field">LF</div>
+                                
+                                <!-- Center Field (deep center, in outfield) -->
+                                <div class="field-position" data-position="CF" style="position: absolute; top: 0%; left: 50%; transform: translateX(-50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Center Field">CF</div>
+                                
+                                <!-- Right Field (deep right, in outfield) -->
+                                <div class="field-position" data-position="RF" style="position: absolute; top: 14%; right: 8%; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: 2px solid #333; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; font-size: 11px; z-index: 10; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);" title="Right Field">RF</div>
+                            </div>
+                            <div id="selectedPositionDisplay" style="margin-top: 10px; text-align: center; font-weight: 600; color: var(--primary-color); min-height: 24px;"></div>
+                        </div>
+
+                        <div class="hit-type-section">
+                            <h3>Hit Type</h3>
+                            <div class="hit-type-buttons" style="display: flex; flex-direction: column; gap: 10px;">
+                                <button class="hit-type-btn" data-hit-type="line-drive">📈 Line Drive</button>
+                                <button class="hit-type-btn" data-hit-type="ground-ball">⬇️ Ground Ball</button>
+                                <button class="hit-type-btn" data-hit-type="fly-ball">⬆️ Fly Ball</button>
+                                <button class="hit-type-btn" data-hit-type="foul">🚫 Foul</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="recordPitchBtn" class="btn btn-primary record-pitch-btn" style="display: none; margin-bottom: 20px;">Record Pitch</button>
+
+                    <div class="summary-display" id="summaryDisplay">
+                        <div class="summary-stats" id="summaryStats">
+                            <!-- Stats will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Practice Pitch Modal -->
+    <div class="modal" id="practicePitchModal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" id="closePracticeModal">&times;</span>
+            <h2>Select Pitch Type</h2>
+            <div class="modal-body">
+                <div class="pitch-type-section">
+                    <div class="pitch-types-grid">
+                        <button class="pitch-type-btn" data-type="fastball">⚡ Fastball</button>
+                        <button class="pitch-type-btn" data-type="curveball">🌀 Curveball</button>
+                        <button class="pitch-type-btn" data-type="slider">➡️ Slider</button>
+                        <button class="pitch-type-btn" data-type="changeup">🐢 Changeup</button>
+                        <button class="pitch-type-btn" data-type="cutter">✂️ Cutter</button>
+                        <button class="pitch-type-btn" data-type="splitter">✋ Splitter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Stats Modal -->
+    <div class="modal" id="statsModal">
+        <div class="modal-content" style="max-width: 550px; padding: 16px;">
+            <span class="close" id="closeStatsModal">&times;</span>
+            <h2 id="statsModalTitle" style="font-size: 20px; margin-bottom: 12px;">Player Statistics</h2>
+            <div class="modal-body" style="margin-top: 0;">
+                <div class="stats-display" id="statsDisplay">
+                    <!-- Detailed stats will be displayed here -->
+                </div>
+                <button id="deletePlayerBtn" class="btn btn-danger" style="margin-top: 12px;">Delete Player</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Sync Modal -->
+    <div class="modal" id="gameModal">
+        <div class="modal-content">
+            <span class="close" id="closeGameModal">&times;</span>
+            <h2>Game Sync</h2>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <label for="gameNameInput" style="display: block; font-size: 14px; margin-bottom: 10px; color: #2C3E50; font-weight: 600;">Game Name:</label>
+                    <input type="text" id="gameNameInput" placeholder="e.g., Quitman vs Mineola" maxlength="50" style="width: 100%; padding: 10px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px; box-sizing: border-box;">
+                    <button id="saveGameNameBtn" class="btn btn-primary" style="width: 100%; margin-top: 10px; padding: 10px;">Save Game Name</button>
+                </div>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                    <p style="font-size: 14px; color: #7F8C8D; margin-bottom: 15px;">Share this Game Code with other devices to sync data</p>
+                    <div class="game-id-display">
+                        <input type="text" id="gameIdDisplay" readonly value="" style="flex: 1; padding: 10px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 18px; font-family: monospace; background: #F5F7FA; text-align: center; letter-spacing: 4px; font-weight: bold;">
+                        <button id="copyGameIdBtn" class="btn btn-primary" style="padding: 10px 20px; margin-left: 10px;">Copy</button>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                    <button id="createNewGameBtn" class="btn btn-secondary" style="width: 100%; padding: 12px; margin-bottom: 10px;">🆕 Create New Game</button>
+                    <p style="font-size: 12px; color: #7F8C8D; text-align: center; margin: 0;">This will generate a new game code and clear current data</p>
+                </div>
+                
+                <div class="game-id-input" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                    <label for="gameIdInput" style="display: block; font-size: 14px; margin-bottom: 10px; color: #2C3E50; font-weight: 600;">Connect to existing game:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="gameIdInput" placeholder="Enter 6-digit code" maxlength="6" style="flex: 1; padding: 10px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 18px; text-align: center; font-family: monospace; letter-spacing: 4px; font-weight: bold;">
+                        <button id="setGameIdBtn" class="btn btn-secondary" style="padding: 10px 20px;">Connect</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Sync Button (Fixed at bottom) -->
+    <button id="openGameModalBtn" class="game-sync-button" title="Game Sync Settings">🔗</button>
+
+    <script src="script.js"></script>
+</body>
+</html>
