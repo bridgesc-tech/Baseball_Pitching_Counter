@@ -2,6 +2,7 @@
   "name": "Baseball Pitching Counter",
   "short_name": "Pitch Counter",
   "description": "Track opponent player pitches during baseball games",
+  "version": "1.1.0",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
